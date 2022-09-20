@@ -18,37 +18,56 @@ class YoloPost(object):
 
         
         self.c_inference  = None 
-        self.inference_buffer    = queue.Queue()
+        self.inference_buffer    = queue.Queue(maxsize=5)
         
         self.postprocess_thread = threading.Thread(target=self.post_loop,daemon=False)
         
-        self.postprocess_buffer   = queue.Queue()
+        self.postprocess_buffer   = queue.Queue(maxsize=5)
         
         self._running = False 
-        
+
+        self.c_postprocess=threading.Condition()
+
+        self.c_postprocess4pre=threading.Condition()
         self.conf_thres=conf_thres
         self.iou_thres=iou_thres
         self.max_det=max_det
         self.visualize=True
+        self.names=[
+            'person',
+            'motorbike',
+            'bicycle',
+            'face',
+            'plate',
+            'longplate',
+            'car',
+            'truck',
+            'van',
+            'bus',
+            'bagac'
+        ]
         
     def post_loop(self):
         while True:
             with self.c_inference:
                 self.c_inference.wait()
 
-            img0,img,pred,self.names=self.inference_buffer.get()
-            im0=self.postprocess(pred,img0,img)
+            img_resized,pred=self.inference_buffer.get()
+            im0=self.postprocess(pred,img_resized)
             
                 
             if self.postprocess_buffer.full():
                 self.postprocess_buffer.get()
-            self.postprocess_buffer.put((im0,img0)) 
+            self.postprocess_buffer.put((im0)) 
         
-        # with self.c_postprocess:
-        #     if (self.postprocess_buffer.qsize() >= 1):
-        #         self.c_postprocess.notifyAll()
+            with self.c_postprocess:
+                if (self.postprocess_buffer.qsize() >= 1):
+                    self.c_postprocess.notifyAll()
+            with self.c_postprocess4pre:
+                if (self.postprocess_buffer.qsize() <=5):
+                    self.c_postprocess4pre.notifyAll()
 
-    def postprocess(self,pred,im0s,img):
+    def postprocess(self,pred,im0s):
         pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, None, False, max_det=self.max_det)
         
         for i in range(len(pred)):
@@ -58,10 +77,10 @@ class YoloPost(object):
             
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                # det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 for *xyxy, conf, cls in reversed(det):
                     # xyxy=xyxy.cpu().detach().numpy()
-                    print((xyxy[0],xyxy[1]), (xyxy[2],xyxy[3]))
+                    # print((xyxy[0],xyxy[1]), (xyxy[2],xyxy[3]))
                     im0 = cv2.rectangle(im0, (int(xyxy[0]),int(xyxy[1])), (int(xyxy[2]),int(xyxy[3])), (255,0,0), 2)
                     
                 
