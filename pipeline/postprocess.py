@@ -10,7 +10,7 @@ from utils.augmentations import letterbox
 import torch
 import threading
 import queue
-from utils.general import non_max_suppression, scale_coords, xyxy2xywh
+from utils.general import non_max_suppression
 from utils.plots import Annotator, colors
 
 class YoloPost(object):
@@ -53,35 +53,30 @@ class YoloPost(object):
                 self.c_inference.wait()
 
             img_resized,pred=self.inference_buffer.get()
-            im0=self.postprocess(pred,img_resized)
+            results=self.postprocess(pred)
             
                 
             if self.postprocess_buffer.full():
                 self.postprocess_buffer.get()
-            self.postprocess_buffer.put((im0)) 
+            self.postprocess_buffer.put((img_resized,results)) 
         
             with self.c_postprocess:
                 if (self.postprocess_buffer.qsize() >= 1):
                     self.c_postprocess.notifyAll()
-            with self.c_postprocess4pre:
-                if (self.postprocess_buffer.qsize() <=5):
-                    self.c_postprocess4pre.notifyAll()
+            # with self.c_postprocess4pre:
+            #     if (self.postprocess_buffer.qsize() <=5):
+            #         self.c_postprocess4pre.notifyAll()
 
-    def postprocess(self,pred,im0s):
+    def postprocess(self,pred):
         pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, None, False, max_det=self.max_det)
-        
-        for i in range(len(pred)):
-            pred[i]=np.rint(pred[i].cpu().detach().numpy())
+        results=[]
         for i, det in enumerate(pred):  # per image
-            im0= im0s.copy()
+            det=det.cpu().detach().numpy()
+            # im0= im0s.copy()
             
             if len(det):
-                # Rescale boxes from img_size to im0 size
-                # det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                 for *xyxy, conf, cls in reversed(det):
-                    # xyxy=xyxy.cpu().detach().numpy()
-                    # print((xyxy[0],xyxy[1]), (xyxy[2],xyxy[3]))
-                    im0 = cv2.rectangle(im0, (int(xyxy[0]),int(xyxy[1])), (int(xyxy[2]),int(xyxy[3])), (255,0,0), 2)
-                    
-                
-        return im0
+                    if int(cls)==0:
+                        results.append([*xyxy,conf])
+                    # im0 = cv2.rectangle(im0, (int(xyxy[0]),int(xyxy[1])), (int(xyxy[2]),int(xyxy[3])), (255,0,0), 2)           
+        return results

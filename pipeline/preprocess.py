@@ -19,11 +19,11 @@ class YoloPre(object):
         self.cap = cv2.VideoCapture(source)
         self.preprocessed_thread = threading.Thread(target=self.pre_loop,daemon=False)
         self.c_preprocessed  = threading.Condition()  
-        self.preprocessed_buffer   = queue.Queue(maxsize=3) #maxsize=5
+        self.preprocessed_buffer   = queue.Queue(maxsize=5) #maxsize=5
         self._running = False 
         self.stride=64
         self.delay=True
-        self.c_postprocess4pre=threading.Condition()
+        self.track4pre=threading.Condition()
     def pre_loop(self):
         while True:
             
@@ -36,8 +36,8 @@ class YoloPre(object):
             with self.c_preprocessed:
                 if (self.preprocessed_buffer.qsize() >= 1):
                     self.c_preprocessed.notifyAll()
-            with self.c_postprocess4pre:
-                self.c_postprocess4pre.wait()
+            with self.track4pre:
+                self.track4pre.wait()
             # if self.delay:
             #     time.sleep(10)
             #     self.delay=False
@@ -53,5 +53,6 @@ class YoloPre(object):
         if ret == True:
             return frame
         self._running=False
+        return None
 
 
