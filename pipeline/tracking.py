@@ -33,13 +33,12 @@ class YoloTrack(object):
                 self.c_postprocess.wait()
 
             img_resized , outputs = self.postprocess_buffer.get()
-            print("//////")
-            im0=self.tracking_process(outputs,img_resized)
+            online_im,online_tlwhs,online_ids=self.tracking_process(outputs,img_resized)
             
                 
             if self.trackprocess_buffer.full():
                 self.trackprocess_buffer.get()
-            self.trackprocess_buffer.put((im0)) 
+            self.trackprocess_buffer.put((online_im,online_tlwhs,online_ids)) 
         
             with self.c_trackprocess:
                 if (self.trackprocess_buffer.qsize() >= 1):
@@ -62,14 +61,14 @@ class YoloTrack(object):
                     online_tlwhs.append(tlwh)
                     online_ids.append(tid)
                     online_scores.append(t.score)
-                    
+            online_im = img_resized
             # timer.toc()
-            online_im = plot_tracking(
-                img_resized, online_tlwhs, online_ids, frame_id=self.frame_id + 1, fps=1. / 1
-            )
+            # online_im = plot_tracking(
+            #     img_resized, online_tlwhs, online_ids, frame_id=self.frame_id + 1, fps=1. / 1
+            # )
         else:
             # timer.toc()
             online_im = img_resized
         self.frame_id+=1 
-        return online_im
+        return online_im,online_tlwhs,online_ids
         # return im0
